@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대기질 검색 결과</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 20px; max-width: 800px; margin-left: auto; margin-right: auto; line-height: 1.6; }
+        a { color: #007bff; text-decoration: none; }
+        .card { border: 1px solid #e1e4e8; border-radius: 6px; padding: 16px; margin-bottom: 20px; }
+        .card h2 { margin-top: 0; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f7f7ff; }
+        .actions { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
+        .btn { display: inline-block; text-align: center; padding: 10px 16px; font-size: 14px; cursor: pointer; border: 1px solid #6c757d; background-color: #6c757d; color: white; border-radius: 4px; }
+        .btn:disabled { background-color: #aaa; border-color: #aaa; cursor: not-allowed; }
+        input[type="number"] { padding: 8px; font-size: 14px; width: 70px; border: 1px solid #ccc; border-radius: 4px; text-align: center;}
+    </style>
+</head>
+<body>
+    <h1>"{{ raw_query }}" 검색 결과</h1>
+    <p><a href="/"> &laquo; 다른 장소 검색하기</a></p>
+
+    <div class="card">
+        <h2>📍 검색 위치 정보</h2>
+        <ul>
+            <li><strong>검색어 유형:</strong> {{ search_type }}</li>
+            {% if place_name %}<li><strong>장소명:</strong> {{ place_name }}</li>{% endif %}
+            {% if address %}<li><strong>주소:</strong> {{ address }}</li>{% endif %}
+            <li><strong>좌표:</strong> 위도 {{ "%.6f"|format(lat) }}, 경도 {{ "%.6f"|format(lon) }}</li>
+        </ul>
+        
+        <div class="actions">
+            <label for="monthsInput">최근</label>
+            <input type="number" id="monthsInput" value="12" min="1" max="60">
+            <label for="monthsInput">개월 데이터</label>
+            <button id="previewBtn" class="btn">미리보기</button>
+        </div>
+        <small style="color: #666; margin-top: 8px; display: block;">최신 1년은 API, 그 이전은 CSV 파일에서 데이터를 가져와 아래에 표로 표시합니다.</small>
+    </div>
+    
+    <div class="card" id="downloadResultCard" style="display: none;">
+        <h2>📊 데이터 미리보기</h2>
+        <div id="downloadedDataTable"></div>
+    </div>
+
+    <!-- (기존 실시간, 월별, 연도별, 과거 데이터 표시는 그대로 유지) -->
+    <div class="card">
+        <h2>💨 실시간 대기질 정보 (인근 측정소)</h2>
+        {% if average_pm10 is not none %}
+            <p><strong>인근 측정소 평균 PM10:</strong> {{ "%.1f"|format(average_pm10) }} µg/m³</p>
+        {% endif %}
+        {% if average_pm25 is not none %}
+            <p><strong>인근 측정소 평균 PM2.5:</strong> {{ "%.1f"|format(average_pm25) }} µg/m³</p>
+        {% endif %}
+        
+        <div class="grid">
+            {% for item in realtime %}
+            <div class="card">
+                <strong>{{ item.stationName }}</strong> ({{ item.distance }}km)<br>
+                <small>{{ item.addr }}</small><br>
+                <small>측정망: {{ item.network_type or '정보없음' }}</small>
+                <hr>
+                PM10: <strong>{{ item.pm10_ug_m3 or '-' }}</strong> µg/m³ ({{ item.pm10_category or 'N/A' }})<br>
+                PM2.5: <strong>{{ item.pm2_5_ug_m3 or '-' }}</strong> µg/m³ ({{ item.pm2_5_category or 'N/A' }})<br>
+                <small>측정시각: {{ item.timestamp or '-' }}</small>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🗓️ 월별 평균 농도 ({{ month_range.begin }} ~ {{ month_range.end }})</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>측정소명</th>
+                    <th>측정월</th>
+                    <th>PM10 (µg/m³)</th>
+                    <th>PM2.5 (µg/m³)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in monthly %}
+                <tr>
+                    <td>{{ item.stationName }}</td>
+                    <td>{{ item.month }}</td>
+                    <td>{{ item.pm10_avg or '-' }}</td>
+                    <td>{{ item.pm25_avg or '-' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">데이터가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if annual %}
+    <div class="card">
+        <h2>📅 연도별 평균 농도</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>측정소명</th>
+                    <th>측정연도</th>
+                    <th>PM10 (µg/m³)</th>
+                    <th>PM2.5 (µg/m³)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in annual %}
+                <tr>
+                    <td>{{ item.stationName }}</td>
+                    <td>{{ item.year }}</td>
+                    <td>{{ "%.2f"|format(item.pm10_avg) if item.pm10_avg is not none else '-' }}</td>
+                    <td>{{ "%.2f"|format(item.pm25_avg) if item.pm25_avg is not none else '-' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">데이터가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if past_annual_data %}
+    <div class="card">
+        <h2>📜 과거 연도별 평균 농도 비교 (2020년 ~ 현재)</h2>
+        <p><small>사용자가 제공한 CSV 파일 기반의 데이터입니다.</small></p>
+        <table>
+            <thead>
+                <tr>
+                    <th>측정소명</th>
+                    <th>연도</th>
+                    <th>연평균 PM10 (µg/m³)</th>
+                    <th>연평균 PM2.5 (µg/m³)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in past_annual_data %}
+                <tr>
+                    <td>{{ item.측정소명 }}</td>
+                    <td>{{ item.연도 }}</td>
+                    <td>{{ "%.2f"|format(item.annual_pm10_avg) if item.annual_pm10_avg is not none else '-' }}</td>
+                    <td>{{ "%.2f"|format(item.annual_pm25_avg) if item.annual_pm25_avg is not none else '-' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">과거 데이터가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <script>
+        var previewedJsonData = []; // 미리보기로 가져온 JSON 데이터를 저장할 변수
+
+        // '미리보기' 버튼 클릭 이벤트
+        document.getElementById('previewBtn').addEventListener('click', async function() {
+            var btn = this;
+            var months = document.getElementById('monthsInput').value;
+            if (!months || parseInt(months, 10) < 1) {
+                alert('1 이상의 개월 수를 입력하세요.');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '처리 중...';
+
+            var rawQuery = {{ raw_query|tojson }};
+            var url = '/api/combined-monthly-data?months=' + months + '&q=' + encodeURIComponent(rawQuery);
+
+            try {
+                var response = await fetch(url);
+                var data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || '서버 오류');
+                }
+                
+                previewedJsonData = data; // 가져온 데이터를 변수에 저장
+                displayJsonAsTable(data, 'downloadedDataTable');
+
+            } catch (error) {
+                console.error('데이터 미리보기 중 오류 발생:', error);
+                alert('데이터를 가져오는 중 오류가 발생했습니다: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '미리보기';
+            }
+        });
+
+        // JSON 데이터를 CSV 문자열로 변환하는 함수
+        function convertJsonToCsv(jsonData) {
+            if (!jsonData || jsonData.length === 0) {
+                return '';
+            }
+            var headers = Object.keys(jsonData[0]);
+            var csvRows = [headers.join(',')]; // 헤더 추가
+
+            jsonData.forEach(function(row) {
+                var values = headers.map(function(header) {
+                    return row[header];
+                });
+                csvRows.push(values.join(','));
+            });
+
+            return csvRows.join('\n');
+        }
+
+        // 파일 다운로드를 실행하는 함수
+        function triggerFileDownload(csvContent, fileName) {
+            var blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement("a");
+            var url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // JSON 데이터를 HTML 테이블로 변환하여 표시하는 함수
+        function displayJsonAsTable(jsonData, containerId) {
+            var container = document.getElementById(containerId);
+            var resultCard = document.getElementById('downloadResultCard');
+            if (!container || !resultCard) return;
+
+            if (!jsonData || jsonData.length === 0) {
+                container.innerHTML = '<p>표시할 데이터가 없습니다.</p>';
+                resultCard.style.display = 'block';
+                return;
+            }
+
+            var headers = Object.keys(jsonData[0]);
+            var tableHtml = '<table><thead><tr>';
+            headers.forEach(function(header) {
+                tableHtml += '<th>' + header + '</th>';
+            });
+            tableHtml += '</tr></thead><tbody>';
+
+            jsonData.forEach(function(row) {
+                tableHtml += '<tr>';
+                headers.forEach(function(header) {
+                    var cellValue = row[header] !== null && row[header] !== undefined ? row[header] : '-';
+                    tableHtml += '<td>' + cellValue + '</td>';
+                });
+                tableHtml += '</tr>';
+            });
+            tableHtml += '</tbody></table>';
+
+            var downloadButtonHtml = '<button id="exportBtn" class="btn" style="margin-top: 10px;">이 표를 CSV로 다운로드</button>';
+            container.innerHTML = tableHtml + downloadButtonHtml;
+
+            document.getElementById('exportBtn').addEventListener('click', function() {
+                var months = document.getElementById('monthsInput').value;
+                var filename = '월별평균_최근_' + months + '_개월.csv';
+                var csvContent = convertJsonToCsv(previewedJsonData);
+                triggerFileDownload(csvContent, filename);
+            });
+
+            resultCard.style.display = 'block';
+        }
+    </script>
+
+</body>
+</html>

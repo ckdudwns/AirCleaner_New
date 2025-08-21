@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대기질 검색</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 20px; max-width: 800px; margin-left: auto; margin-right: auto; }
+        h1 { margin-bottom: 12px; }
+        form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+        input[type="text"] { padding: 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 12px 16px; font-size: 16px; cursor: pointer; border: 1px solid #007bff; background-color: #007bff; color: white; border-radius: 4px; }
+        .hint { color: #666; font-size: 14px; }
+        .error { color: #dc3545; background-color: #f8d7da; padding: 10px; border-radius: 4px; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <h1>대기질 정보 조회 🌬️</h1>
+
+    {% if error %}
+      <div class="error">❌ {{ error }}</div>
+    {% endif %}
+
+    <form id="searchForm" action="/search" method="post">
+        <input id="qInput" type="text" name="q" placeholder="예: 동국대학교 또는 필동로1길 30" value="{{ q or '' }}" autofocus />
+        
+        <div>
+            <input type="checkbox" name="three_years" id="three_years">
+            <label for="three_years">최근 3년 데이터 함께 보기</label>
+        </div>
+
+        <button type="submit">검색</button>
+    </form>
+
+    <p class="hint">
+        도로명 주소, 장소명, 또는 "위도, 경도" 형식으로 입력하세요.
+    </p>
+
+</body>
+</html>

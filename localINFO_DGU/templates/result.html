@@ -128,8 +128,8 @@
             </table>
             <div class="downloads">
                 <label for="yearInput_{{ loop.index }}" style="margin-right: 10px; font-weight: bold;">년 수:</label>
-                <input type="number" id="yearInput_{{ loop.index }}" value="5" min="1" max="10" style="margin-right: 10px; padding: 4px 8px; width: 60px;">
-                <span style="margin-right: 10px; color: #666; font-size: 0.9em;">(1~10년)</span>
+                <input type="number" id="yearInput_{{ loop.index }}" value="5" min="1" max="5" style="margin-right: 10px; padding: 4px 8px; width: 60px;">
+                <span style="margin-right: 10px; color: #666; font-size: 0.9em;">(1~5년)</span>
                 <button onclick="downloadYearly('{{ s.stationName }}', {{ loop.index }})" class="download-btn">연도별 CSV 다운로드</button>
             </div>
         </div>
@@ -200,8 +200,8 @@ function downloadMonthly(stationName, index) {
 function downloadYearly(stationName, index) {
     const yearInput = document.getElementById(`yearInput_${index}`);
     let years = parseInt(yearInput.value);
-    if (isNaN(years) || years < 1 || years > 10) {
-        alert('년 수는 1에서 10 사이의 숫자를 입력해주세요.');
+    if (isNaN(years) || years < 1 || years > 5) {
+        alert('년 수는 1에서 5 사이의 숫자를 입력해주세요.');
         yearInput.focus();
         return;
     }

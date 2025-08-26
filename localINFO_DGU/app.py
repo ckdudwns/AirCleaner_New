@@ -76,6 +76,18 @@ def format_distance(distance_km):
         logger.error(f"거리 포맷팅 오류: {e}")
         return "측정불가"
 
+def format_month_display(month_str):
+    """YYYYMM 형식을 YYYY-MM 형식으로 변환"""
+    if not month_str or len(str(month_str)) != 6:
+        return month_str
+    try:
+        month_str = str(month_str)
+        year = month_str[:4]
+        month = month_str[4:6]
+        return f"{year}-{month}"
+    except (ValueError, TypeError):
+        return month_str
+
 def preprocess_address(address: str) -> str:
     address = address.strip()
     address = re.sub(r'\s+', ' ', address)
@@ -327,9 +339,13 @@ def air_quality_view():
                 monthly_rows = get_monthly_stats(station_name, begin_mm_monthly, end_mm_api)
                 for row in monthly_rows:
                     if row.get("month"):
+                        # 월별 데이터에 표시용 형식 추가
                         monthly_data.append({
-                            "stationName": station_name, "month_label": row["month"],
-                            "pm10_avg": safe_round(row.get("pm10_avg"), 1), "pm25_avg": safe_round(row.get("pm25_avg"), 1)
+                            "stationName": station_name, 
+                            "month_label": format_month_display(row["month"]),  # YYYY-MM 형식으로 표시
+                            "month_raw": row["month"],  # 원본 YYYYMM 형식 (정렬용)
+                            "pm10_avg": safe_round(row.get("pm10_avg"), 1), 
+                            "pm25_avg": safe_round(row.get("pm25_avg"), 1)
                         })
                 yearly_monthly_rows = get_monthly_stats(station_name, begin_mm_yearly, end_mm_api)
                 annual_rows = aggregate_annual_from_monthly(yearly_monthly_rows)
@@ -385,7 +401,8 @@ def download_station_csv(station, dtype):
             months = max(1, min(int(request.args.get("months", 12)), 60))
             begin_mm = (today - relativedelta(months=months)).strftime("%Y%m")
             rows = get_monthly_stats(station, begin_mm, end_mm)
-            df_data = [{"연월": r["month"], "PM10(㎍/㎥)": safe_round(r.get("pm10_avg"), 1), "PM2.5(㎍/㎥)": safe_round(r.get("pm25_avg"), 1)} for r in rows if r.get("month")]
+            # CSV 다운로드에서도 YYYY-MM 형식 사용
+            df_data = [{"연월": format_month_display(r["month"]), "PM10(㎍/㎥)": safe_round(r.get("pm10_avg"), 1), "PM2.5(㎍/㎥)": safe_round(r.get("pm25_avg"), 1)} for r in rows if r.get("month")]
             df = pd.DataFrame(df_data).sort_values('연월', ascending=False)
             filename = f"{station}_monthly_{months}months.csv"
         else:
